@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    USB device filter for RTL-SDR R820T2 / RTL2832U dongles.
+    These are the standard VID/PID combinations seen in the wild.
+    Add additional PIDs if you encounter other variants.
+-->
+<resources>
+    <!-- Realtek RTL2832U (generic) -->
+    <usb-device vendor-id="0x0BDA" product-id="0x2832" />
+    <!-- Realtek RTL2832U with R820T/R820T2 tuner (most common) -->
+    <usb-device vendor-id="0x0BDA" product-id="0x2838" />
+    <!-- Realtek RTL2832U - alternate PID -->
+    <usb-device vendor-id="0x0BDA" product-id="0x2831" />
+    <!-- Nooelec NESDR SMArt -->
+    <usb-device vendor-id="0x0BDA" product-id="0x2840" />
+    <!-- Generic DVB-T receiver (Realtek) -->
+    <usb-device vendor-id="0x0BDA" product-id="0x2836" />
+    <!-- Some clones use Cypress VID -->
+    <usb-device vendor-id="0x04B4" product-id="0x8613" />
+</resources>

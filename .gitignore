@@ -1,0 +1,31 @@
+# Gradle build outputs
+**/build/
+.gradle/
+
+# Android local config (never commit)
+local.properties
+
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+
+# Keystore files (signed release builds — keep out of VCS)
+*.jks
+*.keystore
+
+# Generated files
+app/src/main/java/com/drivewave/sdr/BuildConfig.java
+
+# Test results
+**/test-results/
+**/reports/
+
+# Profiling
+captures/
+
+# NDK / CMake
+.externalNativeBuild/
+.cxx/

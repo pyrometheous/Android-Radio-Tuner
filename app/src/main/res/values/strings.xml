@@ -1,0 +1,110 @@
+<resources>
+    <string name="app_name">DriveWave SDR</string>
+    <string name="nav_tuner">Tuner</string>
+    <string name="nav_stations">Stations</string>
+    <string name="nav_favorites">Favorites</string>
+    <string name="nav_recordings">Recordings</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Connection states -->
+    <string name="state_no_dongle">No Dongle</string>
+    <string name="state_permission_needed">Permission Needed</string>
+    <string name="state_connecting">Connecting…</string>
+    <string name="state_ready">Ready</string>
+    <string name="state_scanning">Scanning</string>
+    <string name="state_recording">Recording</string>
+    <string name="state_error">Error</string>
+
+    <!-- Main tuner -->
+    <string name="label_fm">FM</string>
+    <string name="label_am">AM</string>
+    <string name="label_stereo">STEREO</string>
+    <string name="label_mono">MONO</string>
+    <string name="label_rds">RDS</string>
+    <string name="label_unnamed_station">Unnamed Station</string>
+    <string name="label_signal_strength">Signal Strength</string>
+    <string name="label_mhz">MHz</string>
+    <string name="label_khz">kHz</string>
+
+    <!-- Controls -->
+    <string name="action_play">Play</string>
+    <string name="action_mute">Mute</string>
+    <string name="action_scan">Scan</string>
+    <string name="action_stop_scan">Stop Scan</string>
+    <string name="action_seek_up">Seek Up</string>
+    <string name="action_seek_down">Seek Down</string>
+    <string name="action_next_station">Next Station</string>
+    <string name="action_prev_station">Previous Station</string>
+    <string name="action_favorite">Favorite</string>
+    <string name="action_unfavorite">Unfavorite</string>
+    <string name="action_record_start">Start Recording</string>
+    <string name="action_record_stop">Stop Recording</string>
+    <string name="action_direct_tune">Direct Tune</string>
+    <string name="action_refresh_metadata">Refresh Metadata</string>
+
+    <!-- Station list -->
+    <string name="label_all_stations">All Stations</string>
+    <string name="label_sort_by">Sort by</string>
+    <string name="sort_frequency">Frequency</string>
+    <string name="sort_signal_strength">Signal Strength</string>
+    <string name="sort_name">Name</string>
+    <string name="sort_favorites_first">Favorites First</string>
+    <string name="label_no_stations">No stations found.\nRun a scan to discover stations.</string>
+    <string name="label_no_favorites">No favorites yet.\nTune to a station and tap ♥ to add it.</string>
+
+    <!-- Recordings -->
+    <string name="label_recordings">Recordings</string>
+    <string name="label_no_recordings">No recordings yet.</string>
+    <string name="action_play_recording">Play Recording</string>
+    <string name="action_share_recording">Share Recording</string>
+    <string name="action_delete_recording">Delete Recording</string>
+
+    <!-- Settings -->
+    <string name="settings_sdr_backend">SDR Backend</string>
+    <string name="settings_band">Band Settings</string>
+    <string name="settings_region">Region Presets</string>
+    <string name="settings_calibration">Frequency Calibration</string>
+    <string name="settings_ppm_offset">PPM Offset</string>
+    <string name="settings_audio">Audio &amp; DSP</string>
+    <string name="settings_recording">Recording</string>
+    <string name="settings_theme">Appearance</string>
+    <string name="settings_developer">Developer Diagnostics</string>
+    <string name="settings_developer_off">Developer mode is disabled. Tap here 7 times to enable.</string>
+    <string name="settings_developer_enabled">Developer diagnostics enabled</string>
+
+    <!-- Errors -->
+    <string name="error_usb_permission_denied">USB permission denied. Please grant access to the RTL-SDR dongle.</string>
+    <string name="error_dongle_unplugged">Dongle disconnected. Please reconnect the RTL-SDR.</string>
+    <string name="error_unsupported_tuner">Unsupported hardware. Only RTL2832U / R820T2 dongles are supported.</string>
+    <string name="error_no_stations_found">No stations found in this band. Check antenna connection and try again.</string>
+    <string name="error_metadata_unavailable">Station metadata unavailable. Running in silent mode.</string>
+    <string name="error_recording_failed">Recording failed. Check available storage.</string>
+    <string name="error_low_storage">Low storage space. Recording may fail.</string>
+    <string name="error_backend_unavailable">SDR backend not available.</string>
+    <string name="error_scan_cancelled">Scan cancelled.</string>
+    <string name="error_am_experimental">AM support is experimental and depends on connected hardware capabilities. FM is recommended.</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_direct_tune_title">Tune to Frequency</string>
+    <string name="dialog_direct_tune_hint">Enter frequency (e.g. 101.5)</string>
+    <string name="dialog_direct_tune_search_hint">Or search station name…</string>
+    <string name="dialog_grant_permission">Grant USB Permission</string>
+    <string name="dialog_rename_station">Rename Station</string>
+    <string name="dialog_rename_station_hint">Station name</string>
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_done">Done</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_radio">Radio Playback</string>
+    <string name="notification_channel_recording">Recording</string>
+    <string name="notification_playing">Now Playing</string>
+    <string name="notification_recording">Recording in progress</string>
+
+    <!-- Accessibility -->
+    <string name="a11y_frequency_display">Current frequency display</string>
+    <string name="a11y_signal_meter">Signal strength meter</string>
+    <string name="a11y_waveform">Audio waveform</string>
+    <string name="a11y_station_metadata">Station metadata</string>
+    <string name="a11y_device_status">Device connection status</string>
+</resources>
