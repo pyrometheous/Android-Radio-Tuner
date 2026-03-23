@@ -14,6 +14,7 @@ interface SettingsRepository {
     fun observeCalibrationProfile(): Flow<CalibrationProfile?>
     fun observeDeveloperModeEnabled(): Flow<Boolean>
     fun observeAccentTheme(): Flow<Int>
+    fun observeCustomAccentColor(): Flow<String?>
 
     suspend fun setRegionPreset(preset: RegionPreset)
     suspend fun setPpmOffset(ppm: Int)
@@ -21,4 +22,5 @@ interface SettingsRepository {
     suspend fun saveCalibrationProfile(profile: CalibrationProfile)
     suspend fun setDeveloperModeEnabled(enabled: Boolean)
     suspend fun setAccentTheme(index: Int)
+    suspend fun setCustomAccentColor(hex: String)
 }

@@ -32,12 +32,22 @@ val LocalRadioTheme = staticCompositionLocalOf {
 
 @Composable
 fun DriveWaveTheme(
-    accentIndex: Int = 0,
+    accentIndex: Int = 4,
+    customAccentHex: String? = null,
     content: @Composable () -> Unit,
 ) {
-    val accent = accentColor(accentIndex)
-    val accentDim = accentDimColor(accentIndex)
-    val accentGlow = accentGlowColor(accentIndex)
+    // For index 5 (Custom), derive accent from stored hex; fallback to Purple.
+    val accent = if (accentIndex == 5) parseHexColor(customAccentHex ?: "") ?: PurplePrimary
+                 else accentColor(accentIndex)
+    val accentDim = if (accentIndex == 5) Color(
+        red = accent.red * 0.35f, green = accent.green * 0.35f, blue = accent.blue * 0.35f, alpha = 1f
+    ) else accentDimColor(accentIndex)
+    val accentGlow = if (accentIndex == 5) Color(
+        red = (accent.red + 0.28f).coerceAtMost(1f),
+        green = (accent.green + 0.28f).coerceAtMost(1f),
+        blue = (accent.blue + 0.28f).coerceAtMost(1f),
+        alpha = 1f,
+    ) else accentGlowColor(accentIndex)
 
     val colorScheme = darkColorScheme(
         primary = accent,

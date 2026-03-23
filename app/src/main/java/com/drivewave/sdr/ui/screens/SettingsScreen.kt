@@ -1,8 +1,13 @@
 package com.drivewave.sdr.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,7 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.drivewave.sdr.domain.model.AudioConfig
 import com.drivewave.sdr.domain.model.RegionPreset
+import com.drivewave.sdr.domain.model.SdrConnectionState
+import com.drivewave.sdr.ui.theme.PurplePrimary
+import com.drivewave.sdr.ui.theme.SignalStrong
 import com.drivewave.sdr.ui.theme.TextMuted
+import com.drivewave.sdr.ui.theme.parseHexColor
 import com.drivewave.sdr.ui.theme.radio
 import com.drivewave.sdr.ui.viewmodel.SettingsViewModel
 
@@ -20,6 +29,8 @@ import com.drivewave.sdr.ui.viewmodel.SettingsViewModel
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
+    backendName: String,
+    connectionState: SdrConnectionState,
     onNavigateBack: () -> Unit,
     onNavigateToDiagnostics: () -> Unit,
     modifier: Modifier = Modifier,
@@ -29,6 +40,7 @@ fun SettingsScreen(
     val audio by viewModel.audioConfig.collectAsState()
     val devMode by viewModel.developerMode.collectAsState()
     val accent by viewModel.accentTheme.collectAsState()
+    val customAccentColor by viewModel.customAccentColor.collectAsState()
     var devTapCount by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -55,10 +67,25 @@ fun SettingsScreen(
             item {
                 ElevatedCard {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Backend: UI Preview (No Hardware)", style = MaterialTheme.typography.bodyMedium)
-                        Text("Connect an RTL-SDR R820T2 / RTL2832U dongle via USB-C OTG to enable real reception.",
-                            style = MaterialTheme.typography.bodySmall.copy(color = TextMuted),
-                            modifier = Modifier.padding(top = 4.dp))
+                        Text("Backend: $backendName", style = MaterialTheme.typography.bodyMedium)
+                        val (statusText, statusColor) = when (connectionState) {
+                            SdrConnectionState.READY, SdrConnectionState.SCANNING,
+                            SdrConnectionState.RECORDING ->
+                                "Hardware connected and ready." to SignalStrong
+                            SdrConnectionState.CONNECTING ->
+                                "Connecting…" to MaterialTheme.colorScheme.primary
+                            SdrConnectionState.PERMISSION_NEEDED ->
+                                "USB permission required. Replug the dongle and tap Allow." to MaterialTheme.colorScheme.error
+                            SdrConnectionState.ERROR ->
+                                "Connection error. Replug the dongle and try again." to MaterialTheme.colorScheme.error
+                            else ->
+                                "Connect an RTL-SDR R820T2 / RTL2832U dongle via USB-C OTG to enable real reception." to TextMuted
+                        }
+                        Text(
+                            statusText,
+                            style = MaterialTheme.typography.bodySmall.copy(color = statusColor),
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     }
                 }
             }
@@ -149,13 +176,68 @@ fun SettingsScreen(
                 ElevatedCard {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Accent Color Theme", style = MaterialTheme.typography.bodyMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
-                            listOf("Amber", "Cyan", "Red", "Green").forEachIndexed { i, name ->
-                                FilterChip(
-                                    selected = accent == i,
-                                    onClick = { viewModel.setAccentTheme(i) },
-                                    label = { Text(name) },
+                        Row(
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            listOf("Amber", "Cyan", "Red", "Green", "Purple", "Custom")
+                                .forEachIndexed { i, name ->
+                                    FilterChip(
+                                        selected = accent == i,
+                                        onClick = { viewModel.setAccentTheme(i) },
+                                        label = { Text(name) },
+                                    )
+                                }
+                        }
+
+                        // Custom hex color input — shown when Custom (index 5) is selected
+                        if (accent == 5) {
+                            Spacer(Modifier.height(12.dp))
+                            var hexInput by remember(customAccentColor) {
+                                mutableStateOf(
+                                    (customAccentColor ?: "#BB86FC").trimStart('#').uppercase()
                                 )
+                            }
+                            val previewColor = parseHexColor(hexInput) ?: PurplePrimary
+                            val isValidHex = parseHexColor(hexInput) != null
+
+                            Text(
+                                "Custom Color (hex)",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(bottom = 6.dp),
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                // Live color preview swatch
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(previewColor, RoundedCornerShape(8.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                                )
+                                OutlinedTextField(
+                                    value = hexInput,
+                                    onValueChange = { v ->
+                                        hexInput = v.uppercase()
+                                            .filter { it.isLetterOrDigit() }
+                                            .take(6)
+                                    },
+                                    label = { Text("RRGGBB") },
+                                    prefix = { Text("#") },
+                                    singleLine = true,
+                                    isError = !isValidHex && hexInput.isNotEmpty(),
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Button(
+                                    onClick = { viewModel.setCustomAccentColor("#$hexInput") },
+                                    enabled = isValidHex,
+                                ) {
+                                    Text("Apply")
+                                }
                             }
                         }
                     }

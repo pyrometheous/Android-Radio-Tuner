@@ -45,6 +45,7 @@ class SettingsRepositoryImpl @Inject constructor(
         val CAL_MANUAL = booleanPreferencesKey("cal_manual")
         val DEV_MODE = booleanPreferencesKey("dev_mode")
         val ACCENT_THEME = intPreferencesKey("accent_theme")
+        val CUSTOM_ACCENT_COLOR = stringPreferencesKey("custom_accent_color")
     }
 
     override fun observeRegionPreset(): Flow<RegionPreset> = context.dataStore.data.map { prefs ->
@@ -83,7 +84,10 @@ class SettingsRepositoryImpl @Inject constructor(
         context.dataStore.data.map { it[Keys.DEV_MODE] ?: false }
 
     override fun observeAccentTheme(): Flow<Int> =
-        context.dataStore.data.map { it[Keys.ACCENT_THEME] ?: 0 }
+        context.dataStore.data.map { it[Keys.ACCENT_THEME] ?: 4 }
+
+    override fun observeCustomAccentColor(): Flow<String?> =
+        context.dataStore.data.map { it[Keys.CUSTOM_ACCENT_COLOR] }
 
     override suspend fun setRegionPreset(preset: RegionPreset) {
         context.dataStore.edit { it[Keys.REGION] = preset.name }
@@ -121,5 +125,9 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setAccentTheme(index: Int) {
         context.dataStore.edit { it[Keys.ACCENT_THEME] = index }
+    }
+
+    override suspend fun setCustomAccentColor(hex: String) {
+        context.dataStore.edit { it[Keys.CUSTOM_ACCENT_COLOR] = hex }
     }
 }

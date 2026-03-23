@@ -29,7 +29,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope, SharingStarted.Eagerly, false
     )
     val accentTheme = settingsRepository.observeAccentTheme().stateIn(
-        viewModelScope, SharingStarted.Eagerly, 0
+        viewModelScope, SharingStarted.Eagerly, 4
+    )
+    val customAccentColor = settingsRepository.observeCustomAccentColor().stateIn(
+        viewModelScope, SharingStarted.Eagerly, null
     )
     val calibrationProfile = settingsRepository.observeCalibrationProfile().stateIn(
         viewModelScope, SharingStarted.Eagerly, null
@@ -40,4 +43,5 @@ class SettingsViewModel @Inject constructor(
     fun setAudio(config: AudioConfig) = viewModelScope.launch { settingsRepository.setAudioConfig(config) }
     fun setDeveloperMode(enabled: Boolean) = viewModelScope.launch { settingsRepository.setDeveloperModeEnabled(enabled) }
     fun setAccentTheme(index: Int) = viewModelScope.launch { settingsRepository.setAccentTheme(index) }
+    fun setCustomAccentColor(hex: String) = viewModelScope.launch { settingsRepository.setCustomAccentColor(hex) }
 }

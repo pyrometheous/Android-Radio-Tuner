@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -28,6 +27,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import com.drivewave.sdr.ui.adaptive.AdaptiveTunerLayout
 import com.drivewave.sdr.ui.navigation.Dest
+import com.drivewave.sdr.domain.model.SdrConnectionState
 import com.drivewave.sdr.ui.screens.DiagnosticsScreen
 import com.drivewave.sdr.ui.screens.FavoritesScreen
 import com.drivewave.sdr.ui.screens.RecordingsScreen
@@ -46,12 +46,11 @@ class MainActivity : ComponentActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels()
     private val recordingsViewModel: RecordingsViewModel by viewModels()
 
-    // Receives ACTION_USB_DEVICE_ATTACHED when the OS grants permission after the dialog.
-    private val usbPermissionReceiver = object : BroadcastReceiver() {
+    // Receives ACTION_USB_DEVICE_DETACHED when the dongle is physically removed.
+    // RECEIVER_EXPORTED is required for system-protected broadcasts on Android 12+.
+    private val usbDetachReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
-                tunerViewModel.onUsbDeviceAttached()
-            } else if (intent.action == UsbManager.ACTION_USB_DEVICE_DETACHED) {
+            if (intent.action == UsbManager.ACTION_USB_DEVICE_DETACHED) {
                 tunerViewModel.onUsbDeviceDetached()
             }
         }
@@ -62,25 +61,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Register USB hot-plug receiver.
-        val filter = IntentFilter().apply {
-            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
-            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
-        }
-        registerReceiver(usbPermissionReceiver, filter, RECEIVER_NOT_EXPORTED)
+        // Register detach receiver. RECEIVER_EXPORTED required for system USB broadcasts.
+        registerReceiver(
+            usbDetachReceiver,
+            IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED),
+            RECEIVER_EXPORTED,
+        )
 
-        // If launched by a USB_DEVICE_ATTACHED intent (from usb_device_filter.xml), notify ViewModel.
-        if (intent?.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
-            val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
-            if (device != null) tunerViewModel.onUsbDeviceAttached()
-        }
+        // Handle USB ATTACHED intent from manifest filter (cold start or permission just granted).
+        handleUsbIntent(intent)
 
         setContent {
             val accentIndex by settingsViewModel.accentTheme.collectAsState()
+            val customAccentHex by settingsViewModel.customAccentColor.collectAsState()
             val developerMode by settingsViewModel.developerMode.collectAsState()
             val windowSizeClass = calculateWindowSizeClass(this)
 
-            DriveWaveTheme(accentIndex = accentIndex) {
+            DriveWaveTheme(accentIndex = accentIndex, customAccentHex = customAccentHex) {
                 DriveWaveNavGraph(
                     tunerViewModel = tunerViewModel,
                     settingsViewModel = settingsViewModel,
@@ -94,7 +91,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(usbPermissionReceiver)
+        unregisterReceiver(usbDetachReceiver)
+    }
+
+    // Called when singleTask activity is re-used (e.g. USB attach while already running).
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleUsbIntent(intent)
+    }
+
+    private fun handleUsbIntent(intent: Intent?) {
+        if (intent?.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
+            tunerViewModel.onUsbDeviceAttached()
+        }
     }
 }
 
@@ -211,8 +220,12 @@ private fun AppNavHost(
             )
         }
         composable<Dest.Settings> {
+            val backendName by tunerViewModel.activeBackendName.collectAsState()
+            val connectionState by tunerViewModel.radioState.collectAsState()
             SettingsScreen(
                 viewModel = settingsViewModel,
+                backendName = backendName,
+                connectionState = connectionState.connectionState,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToDiagnostics = {
                     if (developerMode) navController.navigate(Dest.Diagnostics)

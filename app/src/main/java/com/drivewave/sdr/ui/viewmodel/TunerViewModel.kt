@@ -44,6 +44,9 @@ class TunerViewModel @Inject constructor(
     private val _uiMessage = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val uiMessage: SharedFlow<String> = _uiMessage.asSharedFlow()
 
+    private val _activeBackendName = MutableStateFlow("UI Preview (No Hardware)")
+    val activeBackendName: StateFlow<String> = _activeBackendName.asStateFlow()
+
     private var activeBackend: SdrBackend? = null
     private var waveformJob: Job? = null
     private var metadataRefreshJob: Job? = null
@@ -88,6 +91,7 @@ class TunerViewModel @Inject constructor(
             activeBackend = backend
             when (val result = backend.open()) {
                 is OpenResult.Success -> {
+                    _activeBackendName.value = backend.name
                     _radioState.update {
                         it.copy(connectionState = SdrConnectionState.READY)
                     }
@@ -135,6 +139,7 @@ class TunerViewModel @Inject constructor(
         viewModelScope.launch {
             activeBackend?.close()
             activeBackend = null
+            _activeBackendName.value = "UI Preview (No Hardware)"
             stopWaveform()
             _radioState.update {
                 it.copy(

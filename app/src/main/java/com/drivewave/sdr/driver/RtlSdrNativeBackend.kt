@@ -33,8 +33,8 @@ class RtlSdrNativeBackend @Inject constructor(
 
     override val name: String = "RTL-SDR Native (RTL2832U / R820T2)"
     override val supportedBands: List<RadioBand> = listOf(RadioBand.FM)
-    // TODO(native-backend): check if native library is actually present
-    override val isAvailable: Boolean get() = isNativeLibraryPresent()
+    // Available when a matching USB device is physically present — permission is handled in open().
+    override val isAvailable: Boolean get() = findRtlSdrDevice() != null
 
     private var _isOpen = false
     override val isOpen: Boolean get() = _isOpen
@@ -119,11 +119,6 @@ class RtlSdrNativeBackend @Inject constructor(
         return usbManager.deviceList.values.firstOrNull { device ->
             RTL_SDR_VID_PIDS.any { (vid, pid) -> device.vendorId == vid && device.productId == pid }
         }
-    }
-
-    private fun isNativeLibraryPresent(): Boolean {
-        // TODO(native-backend): check if librtlsdr.so is present at runtime
-        return false // Disabled until native lib is integrated
     }
 
     companion object {
