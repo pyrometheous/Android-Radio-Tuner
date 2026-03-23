@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
@@ -54,7 +55,14 @@ class RadioService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID_RADIO, buildRadioNotification("DriveWave SDR", "Ready"))
+        // API 34+ requires the foreground service type to be passed explicitly when the
+        // manifest declares foregroundServiceType. Using the 3-param overload (added in API 29)
+        // is safe since minSdk = 33.
+        startForeground(
+            NOTIFICATION_ID_RADIO,
+            buildRadioNotification("DriveWave SDR", "Ready"),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+        )
         when (intent?.action) {
             ACTION_START_RADIO -> startRadio()
             ACTION_STOP_RADIO -> stopRadio()
