@@ -129,10 +129,6 @@ class RadioService : Service() {
             .addAction(android.R.drawable.ic_media_previous, "Prev", prevIntent)
             .addAction(android.R.drawable.ic_media_pause, "Mute", muteIntent)
             .addAction(android.R.drawable.ic_media_next, "Next", nextIntent)
-            .setStyle(
-                androidx.media.app.NotificationCompat.MediaStyle()
-                    .setShowActionsInCompactView(0, 1, 2)
-            )
             .setOngoing(true)
             .build()
     }

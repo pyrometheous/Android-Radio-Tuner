@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val accentIndex by settingsViewModel.accentThemeIndex.collectAsState()
+            val accentIndex by settingsViewModel.accentTheme.collectAsState()
             val developerMode by settingsViewModel.developerMode.collectAsState()
             val windowSizeClass = calculateWindowSizeClass(this)
 

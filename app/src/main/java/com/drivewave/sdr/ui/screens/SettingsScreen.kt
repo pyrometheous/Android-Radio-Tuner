@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.drivewave.sdr.domain.model.AudioConfig
 import com.drivewave.sdr.domain.model.RegionPreset
 import com.drivewave.sdr.ui.theme.TextMuted
+import com.drivewave.sdr.ui.theme.radio
 import com.drivewave.sdr.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -10,6 +10,7 @@
 set -e
 
 APP_HOME="$(cd "$(dirname "$0")" && pwd -P)"
+APP_BASE_NAME="$(basename "$0")"
 
 # OS specific support (must be 'true' or 'false').
 cygwin=false
@@ -52,7 +53,7 @@ APP_ARGS="$(save "$@")"
 
 # Collect all arguments for the java command, following the shell quoting and substitution rules
 eval set -- \
-  -D org.gradle.appname="$APP_BASE_NAME" \
+  "-Dorg.gradle.appname=$APP_BASE_NAME" \
   -classpath "\"$CLASSPATH\"" \
   org.gradle.wrapper.GradleWrapperMain \
   "$APP_ARGS"

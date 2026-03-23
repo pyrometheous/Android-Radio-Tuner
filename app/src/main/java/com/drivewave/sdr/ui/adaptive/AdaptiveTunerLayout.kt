@@ -1,22 +1,18 @@
 package com.drivewave.sdr.ui.adaptive
 
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Radio
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Settings
-import androidx.navigation.NavHostController
+import androidx.compose.material3.*
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import com.drivewave.sdr.ui.navigation.Dest
 
 data class NavItem(
@@ -35,8 +31,8 @@ private val navItems = listOf(
 
 /**
  * Wraps the app content with adaptive navigation:
- *  - Compact width (phones): bottom bar
- *  - Medium/Expanded (tablets, landscape): navigation rail or drawer
+ *  - Compact width (phones): NavigationBar at the bottom
+ *  - Medium/Expanded (tablets, landscape): NavigationRail on the left
  */
 @Composable
 fun AdaptiveTunerLayout(
@@ -46,31 +42,42 @@ fun AdaptiveTunerLayout(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val suiteType = when (widthSizeClass) {
-        WindowWidthSizeClass.Compact -> NavigationSuiteType.NavigationBar
-        WindowWidthSizeClass.Medium -> NavigationSuiteType.NavigationRail
-        else -> NavigationSuiteType.NavigationDrawer
-    }
-
-    NavigationSuiteScaffold(
-        modifier = modifier,
-        layoutType = suiteType,
-        navigationSuiteColors = NavigationSuiteDefaults.colors(
-            navigationBarContainerColor = MaterialTheme.colorScheme.surface,
-            navigationRailContainerColor = MaterialTheme.colorScheme.surface,
-            navigationDrawerContainerColor = MaterialTheme.colorScheme.surface,
-        ),
-        navigationSuiteItems = {
-            navItems.forEach { item ->
-                item(
-                    selected = currentDest == item.dest,
-                    onClick = { onDestSelected(item.dest) },
-                    icon = { Icon(item.icon, contentDescription = item.label) },
-                    label = { Text(item.label) },
-                )
+    if (widthSizeClass == WindowWidthSizeClass.Compact) {
+        // Phone: bottom navigation bar
+        Column(modifier = modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f)) {
+                content()
             }
-        },
-    ) {
-        content()
+            NavigationBar {
+                navItems.forEach { item ->
+                    NavigationBarItem(
+                        selected = currentDest == item.dest,
+                        onClick = { onDestSelected(item.dest) },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) },
+                    )
+                }
+            }
+        }
+    } else {
+        // Tablet/landscape: navigation rail on the left
+        Row(modifier = modifier.fillMaxSize()) {
+            NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+                Spacer(Modifier.height(8.dp))
+                navItems.forEach { item ->
+                    NavigationRailItem(
+                        selected = currentDest == item.dest,
+                        onClick = { onDestSelected(item.dest) },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) },
+                    )
+                }
+            }
+            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                content()
+            }
+        }
     }
 }
+

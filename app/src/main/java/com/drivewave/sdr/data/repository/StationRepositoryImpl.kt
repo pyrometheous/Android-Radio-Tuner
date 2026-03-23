@@ -32,7 +32,7 @@ class StationRepositoryImpl @Inject constructor(
         // Keep favorites alive; delete all non-favorite stations first
         stationDao.deleteNonFavorites()
         // Insert new stations, preserving isFavorite if the frequency already existed
-        val existingFavorites = buildSet {
+        val existingFavorites = buildSet<String> {
             // We already deleted non-favorites; what remains in DB are favorites
         }
         stationDao.insertAll(stations.map { station ->

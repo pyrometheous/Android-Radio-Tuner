@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.drivewave.sdr.ui.theme.AmberDim
 import com.drivewave.sdr.ui.theme.AmberPrimary
+import kotlinx.coroutines.launch
 
 /**
  * Animated horizontal audio waveform visualizer.

@@ -1,7 +1,9 @@
 <resources>
-    <style name="Theme.DriveWaveSDR" parent="android:Theme.Material.NoTitleBar.Fullscreen">
+    <!-- Minimal XML theme for Compose — all visual styling is done in Compose. -->
+    <style name="Theme.DriveWaveSDR" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:statusBarColor">@android:color/black</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 </resources>

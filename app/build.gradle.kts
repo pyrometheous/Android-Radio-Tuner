@@ -55,15 +55,15 @@ android {
         buildConfig = true
     }
 
+    // Room schema export location
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
-    }
-
-    // Adaptive icon support
-    androidResources {
-        generateLocaleConfig = true
     }
 }
 
@@ -86,11 +86,8 @@ dependencies {
     // Navigation
     implementation(libs.androidx.navigation.compose)
 
-    // Adaptive layout (Material3 adaptive)
-    implementation(libs.androidx.adaptive)
-    implementation(libs.androidx.adaptive.layout)
-    implementation(libs.androidx.adaptive.navigation)
-    implementation(libs.androidx.window)
+    // Window size class
+    implementation(libs.androidx.material3.windowsizeclass)
 
     // Hilt DI
     implementation(libs.hilt.android)
