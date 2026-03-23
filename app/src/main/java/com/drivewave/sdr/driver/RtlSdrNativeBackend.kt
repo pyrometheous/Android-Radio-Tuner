@@ -1,20 +1,15 @@
 package com.drivewave.sdr.driver
 
 import android.content.Context
-import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import com.drivewave.sdr.domain.model.RadioBand
 import com.drivewave.sdr.domain.model.SignalQuality
-import com.drivewave.sdr.dsp.FmDemodulator
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.isActive
 import javax.inject.Inject
 
 /**
@@ -113,63 +108,13 @@ class RtlSdrNativeBackend @Inject constructor(
         // TODO(native-backend): call rtlsdr_set_sample_rate(dev, sampleRateHz)
     }
 
-    override fun iqSampleStream(): Flow<IqSample> = flow {
-        // Attempt to stream raw IQ bytes from the RTL2832U's bulk-in endpoint.
-        //
-        // NOTE: For audio to work the USB device must first be initialised with the
-        // RTL2832U + R820T2 register sequences (see librtlsdr rtlsdr_init_baseband /
-        // r82xx_init).  The open() stub above marks those TODO.  Until that
-        // initialization is implemented, bulkTransfer() will return 0 bytes because
-        // the endpoint is not yet enabled by the chip.
-        //
-        // To use real hardware RIGHT NOW without native library:
-        //   1. Install "RTL-SDR USB Driver" (marto.rtl_tcp_andro) from the Play Store.
-        //   2. The backend selection will then use ExternalDriverBackend via rtl_tcp.
-
-        val device = findRtlSdrDevice() ?: return@flow
-        val conn = usbManager.openDevice(device) ?: return@flow
-
-        val intf = (0 until device.interfaceCount).map { device.getInterface(it) }.firstOrNull()
-            ?: run { conn.close(); return@flow }
-
-        val endpoint = (0 until intf.endpointCount)
-            .map { intf.getEndpoint(it) }
-            .firstOrNull {
-                it.direction == UsbConstants.USB_DIR_IN &&
-                it.type == UsbConstants.USB_ENDPOINT_XFER_BULK
-            }
-            ?: run { conn.close(); return@flow }
-
-        if (!conn.claimInterface(intf, true)) {
-            conn.close()
-            return@flow
-        }
-        _usbConnection = conn
-        _usbInterface  = intf
-
-        val buf = ByteArray(65_536) // 64 KB ≈ 68 ms of IQ at 960 kHz
-        try {
-            while (currentCoroutineContext().isActive) {
-                val n = conn.bulkTransfer(endpoint, buf, buf.size, 5_000)
-                if (n > 0) {
-                    emit(
-                        IqSample(
-                            data                = buf.copyOf(n),
-                            sampleRateHz        = FmDemodulator.INPUT_RATE,
-                            centerFrequencyMhz  = _currentFrequencyMhz,
-                            timestampNs         = System.nanoTime(),
-                        )
-                    )
-                } else if (n < 0) {
-                    break // USB error or device disconnected
-                }
-            }
-        } finally {
-            conn.releaseInterface(intf)
-            conn.close()
-            _usbConnection = null
-            _usbInterface  = null
-        }
+    override fun iqSampleStream(): Flow<IqSample> {
+        // RTL2832U chip initialisation (baseband setup, I²C tuner config, sample-rate
+        // divider) has not been implemented yet. Without it the device either returns
+        // no data or DVB-T garbage that the FM demodulator hears as loud noise.
+        // Use ExternalDriverBackend (rtl_tcp) for real-hardware reception today.
+        // TODO(native-backend): implement initBaseband() + r82xx_init() then remove this guard.
+        return emptyFlow()
     }
 
     override suspend fun measureSignalQuality(): SignalQuality {

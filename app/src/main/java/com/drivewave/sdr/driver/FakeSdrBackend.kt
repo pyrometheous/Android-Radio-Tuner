@@ -82,17 +82,15 @@ class FakeSdrBackend @Inject constructor() : SdrBackend {
             val data = ByteArray(bytesPerBlock)
             for (n in 0 until bytesPerBlock / 2) {
                 val audio = sin(audioPhase)
-                audioPhase = (audioPhase + 2.0 * Math.PI * audioFreqHz * samplePeriod)
-                    .let { if (it > 2.0 * Math.PI) it - 2.0 * Math.PI else it }
+                audioPhase += 2.0 * Math.PI * audioFreqHz * samplePeriod
 
-                // FM: frequency deviation proportional to audio amplitude
-                carrierPhase = (carrierPhase +
-                    2.0 * Math.PI * maxDeviation * audio * samplePeriod)
-                    .let { if (it > 2.0 * Math.PI) it - 2.0 * Math.PI else it }
+                // FM: integrate audio to get phase deviation
+                carrierPhase += 2.0 * Math.PI * maxDeviation * audio * samplePeriod
 
-                // IQ in signed byte range (-128..127)
-                data[n * 2]     = (cos(carrierPhase) * 120.0).toInt().coerceIn(-128, 127).toByte()
-                data[n * 2 + 1] = (sin(carrierPhase) * 120.0).toInt().coerceIn(-128, 127).toByte()
+                // RTL-SDR unsigned format: 0-255, centre at 127.
+                // Stored as signed Java bytes (128 → -128, 255 → -1, etc.).
+                data[n * 2]     = ((cos(carrierPhase) * 100.0 + 127.0).toInt().coerceIn(0, 255)).toByte()
+                data[n * 2 + 1] = ((sin(carrierPhase) * 100.0 + 127.0).toInt().coerceIn(0, 255)).toByte()
             }
             emit(IqSample(data, sampleRate, currentFrequency, System.nanoTime()))
             // Pace to ~real-time: bytesPerBlock/2 IQ pairs at sampleRate Hz

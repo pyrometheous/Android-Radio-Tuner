@@ -15,7 +15,10 @@ import kotlin.math.atan2
  *
  * Math: 960,000 ÷ 4 ÷ 5 = 48,000 Hz
  *
- * Input bytes should be signed (-128..127) interleaved I,Q as per IqSample.data.
+ * Input bytes follow the RTL-SDR unsigned format: 0–255, center at 127,
+ * stored as Java signed bytes (so 0x80 = 128 unsigned = -128 signed in Kotlin).
+ * The process() function applies (byte & 0xFF) - 127 before normalising.
+ * FakeSdrBackend also generates this format for consistency.
  */
 class FmDemodulator {
 
@@ -49,8 +52,10 @@ class FmDemodulator {
         val end = data.size and 1.inv()   // ensure we consume whole IQ pairs
 
         while (i < end) {
-            val iSamp = data[i++].toFloat() * INV128
-            val qSamp = data[i++].toFloat() * INV128
+            // RTL-SDR data is unsigned 0–255 stored as signed Java bytes.
+            // Convert: (byte & 0xFF) - 127 gives -127..128 centred on 0.
+            val iSamp = ((data[i++].toInt() and 0xFF) - 127).toFloat() * INV128
+            val qSamp = ((data[i++].toInt() and 0xFF) - 127).toFloat() * INV128
 
             // Stage 1: accumulate DEC1 samples and average
             iAcc[acc1] = iSamp
