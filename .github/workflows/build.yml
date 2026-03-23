@@ -10,7 +10,7 @@ on:
 # Opt into Node.js 24 now to silence Node.js 20 deprecation warnings.
 # GitHub Actions will force Node.js 24 as the default from June 2026 onward.
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build:
