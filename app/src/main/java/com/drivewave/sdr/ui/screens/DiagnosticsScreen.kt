@@ -66,6 +66,25 @@ fun DiagnosticsScreen(
             item { DiagRow("Is Muted", state.isMuted.toString()) }
             item { DiagRow("Is Recording", state.isRecording.toString()) }
             item { DiagRow("Error", state.errorMessage ?: "–") }
+            item { Spacer(Modifier.height(16.dp)) }
+            item {
+                Button(
+                    onClick = { tunerViewModel.exportDebugLog() },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Export Debug Log to Downloads")
+                }
+            }
+            item {
+                Text(
+                    "Log is saved to Downloads/DriveWave-debug.log. " +
+                    "Pull it via USB or open it in a file manager to share.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
     }
 }

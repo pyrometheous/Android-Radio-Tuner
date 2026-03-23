@@ -18,6 +18,7 @@ import com.drivewave.sdr.driver.SdrBackend
 import com.drivewave.sdr.driver.SdrBackendSelector
 import com.drivewave.sdr.dsp.FmDemodulator
 import com.drivewave.sdr.scan.ScanEngine
+import com.drivewave.sdr.util.AppLogger
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,7 @@ class RadioService : Service() {
 
     @Inject lateinit var backendSelector: SdrBackendSelector
     @Inject lateinit var scanEngine: ScanEngine
+    @Inject lateinit var logger: AppLogger
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var activeBackend: SdrBackend? = null
@@ -70,12 +72,27 @@ class RadioService : Service() {
             ACTION_SKIP_NEXT -> handleSkipNext()
             ACTION_SKIP_PREV -> handleSkipPrev()
         }
-        return START_STICKY
+        // START_NOT_STICKY: do not auto-restart after process death. If the user
+        // closes the app, silence — not zombie audio from a restarted service.
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * Called when the user removes the app task from recents.
+     * Combined with android:stopWithTask="true" in the manifest, this ensures the
+     * AudioTrack is always released when the user closes the app.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        logger.d(TAG, "onTaskRemoved — stopping service")
+        stopRadio()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
+        logger.d(TAG, "onDestroy")
+        audioJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -85,6 +102,7 @@ class RadioService : Service() {
         audioJob = serviceScope.launch {
             val backend = backendSelector.selectBackend()
             activeBackend = backend
+            logger.d(TAG, "startRadio: backend=${backend.name}")
             // Backend may still be opening (TunerViewModel.connectDongle runs concurrently).
             // Wait up to 4 seconds for it to become ready.
             var waited = 0
@@ -92,7 +110,11 @@ class RadioService : Service() {
                 delay(100)
                 waited += 100
             }
-            if (!backend.isOpen) return@launch
+            if (!backend.isOpen) {
+                logger.w(TAG, "backend not open after ${waited}ms — skipping audio")
+                return@launch
+            }
+            logger.d(TAG, "backend ready, starting AudioTrack")
             startAudioOutput(backend)
         }
     }
@@ -124,6 +146,7 @@ class RadioService : Service() {
         track.play()
         val demodulator = FmDemodulator()
 
+        var blockCount = 0
         try {
             backend.iqSampleStream().collect { sample ->
                 val pcm = demodulator.process(sample.data)
@@ -131,10 +154,18 @@ class RadioService : Service() {
                     // AudioTrack.write() in MODE_STREAM is a blocking call — dispatch to IO
                     // so we don't starve the Default thread pool.
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        track.write(pcm, 0, pcm.size)
+                        val written = track.write(pcm, 0, pcm.size)
+                        if (written < 0 && blockCount < 5)
+                            logger.w(TAG, "AudioTrack.write returned error $written")
                     }
+                    if (++blockCount == 1)
+                        logger.d(TAG, "first PCM block: ${pcm.size} shorts, sample[0]=${pcm[0]}")
                 }
             }
+            logger.d(TAG, "iqSampleStream completed after $blockCount blocks")
+        } catch (e: Exception) {
+            logger.e(TAG, "startAudioOutput exception after $blockCount blocks", e)
+            throw e
         } finally {
             track.stop()
             track.release()
@@ -225,6 +256,7 @@ class RadioService : Service() {
         const val ACTION_SKIP_NEXT = "com.drivewave.sdr.SKIP_NEXT"
         const val ACTION_SKIP_PREV = "com.drivewave.sdr.SKIP_PREV"
 
+        private const val TAG = "RadioService"
         private const val NOTIFICATION_ID_RADIO = 1001
         private const val CHANNEL_RADIO = "drivewave_radio"
         private const val CHANNEL_RECORDING = "drivewave_recording"

@@ -9,6 +9,7 @@ import com.drivewave.sdr.domain.model.stationIdFrom
 import com.drivewave.sdr.driver.SdrBackend
 import com.drivewave.sdr.metadata.FakeRdsProvider
 import com.drivewave.sdr.metadata.RdsParser
+import com.drivewave.sdr.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -46,6 +47,7 @@ sealed class ScanEvent {
 class ScanEngine @Inject constructor(
     private val rdsParser: RdsParser,
     private val fakeRdsProvider: FakeRdsProvider,
+    private val logger: AppLogger,
 ) {
     private val _scanEvents = MutableStateFlow<ScanEvent?>(null)
     val scanEvents: StateFlow<ScanEvent?> = _scanEvents
@@ -72,11 +74,15 @@ class ScanEngine @Inject constructor(
 
         scanJob = scope.launch {
             try {
+                logger.d(TAG, "startScan: backend=${backend.name} band=${bandConfig.band} ppm=$ppmOffset")
                 runScan(backend, bandConfig, ppmOffset, sessionId)
             } catch (e: CancellationException) {
+                logger.d(TAG, "scan cancelled — ${foundStations.size} stations so far")
                 _scanEvents.value = ScanEvent.Cancelled(foundStations.toList())
             } catch (e: Exception) {
-                _scanEvents.value = ScanEvent.Error(e.message ?: "Unknown scan error")
+                val msg = "${e.javaClass.simpleName}: ${e.message ?: "(no message)"}"
+                logger.e(TAG, "scan failed", e)
+                _scanEvents.value = ScanEvent.Error(msg)
             }
         }
     }
@@ -211,6 +217,7 @@ class ScanEngine @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "ScanEngine"
         private const val TUNE_SETTLE_MS = 80L
         private const val QUALITY_SAMPLES = 5
         private const val SAMPLE_INTERVAL_MS = 40L

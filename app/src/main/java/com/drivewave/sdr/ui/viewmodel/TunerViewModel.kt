@@ -14,6 +14,7 @@ import com.drivewave.sdr.recording.RecordingManager
 import com.drivewave.sdr.scan.ScanEngine
 import com.drivewave.sdr.scan.ScanEvent
 import com.drivewave.sdr.service.RadioService
+import com.drivewave.sdr.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -36,6 +37,7 @@ class TunerViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val recordingManager: RecordingManager,
     private val fakeRdsProvider: FakeRdsProvider,
+    private val logger: AppLogger,
 ) : ViewModel() {
 
     private val _radioState = MutableStateFlow(RadioState())
@@ -96,8 +98,10 @@ class TunerViewModel @Inject constructor(
             _radioState.update { it.copy(connectionState = SdrConnectionState.CONNECTING, errorMessage = null) }
             val backend = backendSelector.selectBackend()
             activeBackend = backend
+            logger.d(TAG, "connectDongle: selected backend='${backend.name}' isAvailable=${backend.isAvailable}")
             when (val result = backend.open()) {
                 is OpenResult.Success -> {
+                    logger.d(TAG, "backend open: SUCCESS — ${backend.name}")
                     _activeBackendName.value = backend.name
                     // Launch foreground service for background audio output
                     context.startService(
@@ -112,6 +116,7 @@ class TunerViewModel @Inject constructor(
                     startWaveformSimulation()
                 }
                 is OpenResult.PermissionDenied -> {
+                    logger.w(TAG, "backend open: PERMISSION_DENIED")
                     // Request USB permission; the system dialog will trigger
                     // ACTION_USB_DEVICE_ATTACHED in MainActivity which calls onUsbDeviceAttached()
                     // again when the user grants access.
@@ -124,6 +129,7 @@ class TunerViewModel @Inject constructor(
                     }
                 }
                 is OpenResult.NoDevice -> {
+                    logger.d(TAG, "backend open: NO_DEVICE")
                     _radioState.update {
                         it.copy(
                             connectionState = SdrConnectionState.NO_DONGLE,
@@ -132,6 +138,7 @@ class TunerViewModel @Inject constructor(
                     }
                 }
                 is OpenResult.UnsupportedDevice -> {
+                    logger.w(TAG, "backend open: UNSUPPORTED_DEVICE")
                     _radioState.update {
                         it.copy(
                             connectionState = SdrConnectionState.ERROR,
@@ -140,6 +147,7 @@ class TunerViewModel @Inject constructor(
                     }
                 }
                 is OpenResult.Error -> {
+                    logger.e(TAG, "backend open: ERROR — ${result.message}")
                     _radioState.update {
                         it.copy(
                             connectionState = SdrConnectionState.ERROR,
@@ -371,11 +379,29 @@ class TunerViewModel @Inject constructor(
             )
             result.fold(
                 onSuccess = {
+                    logger.d(TAG, "recording started: $stationName")
                     _radioState.update { it.copy(isRecording = true, connectionState = SdrConnectionState.RECORDING) }
                 },
                 onFailure = { e ->
-                    _uiMessage.tryEmit("Recording failed: ${e.message}")
+                    val msg = "${e.javaClass.simpleName}: ${e.message ?: "(no detail)"}"
+                    logger.e(TAG, "startRecording failed", e)
+                    _uiMessage.tryEmit("Recording failed: $msg")
                 }
+            )
+        }
+    }
+
+    /**
+     * Export the debug log to Downloads/DriveWave-debug.log.
+     * Shows a snackbar with the result.
+     */
+    fun exportDebugLog() {
+        viewModelScope.launch {
+            logger.d(TAG, "exportDebugLog requested")
+            val ok = withContext(Dispatchers.IO) { logger.exportToDownloads() }
+            _uiMessage.tryEmit(
+                if (ok) "Debug log saved to Downloads/DriveWave-debug.log"
+                else "Failed to export log — check storage permissions"
             )
         }
     }
@@ -439,6 +465,7 @@ class TunerViewModel @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "TunerViewModel"
         private const val SEEK_THRESHOLD = 0.35f   // matches ScanEngine.CONFIDENCE_THRESHOLD
         private const val SEEK_SETTLE_MS = 80L     // ms to wait after tune before quality check
         const val USB_PERMISSION_ACTION = "com.drivewave.sdr.USB_PERMISSION"

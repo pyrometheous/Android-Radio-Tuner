@@ -57,10 +57,13 @@
                 android:resource="@xml/usb_device_filter" />
         </activity>
 
-        <!-- Foreground service for radio playback and scanning -->
+        <!-- Foreground service for radio playback and scanning.
+             stopWithTask=true: automatically stopped when the user swipes the app
+             from the recent-apps list, preventing the AudioTrack from orphaning. -->
         <service
             android:name=".service.RadioService"
             android:exported="false"
+            android:stopWithTask="true"
             android:foregroundServiceType="mediaPlayback|microphone" />
 
     </application>

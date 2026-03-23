@@ -101,6 +101,11 @@ class ExternalDriverBackend @Inject constructor(
                     // Enable hardware AGC (safest default for broadcast FM).
                     sendCmd(0x03, 0L)   // gain mode = auto
                     sendCmd(0x08, 1L)   // RTL AGC on
+                    // Flush any IQ data that arrived before the sample-rate command
+                    // was applied by draining the socket's receive buffer.
+                    delay(150)
+                    val drain = ByteArray(65_536)
+                    s.inputStream.skip(s.inputStream.available().toLong().coerceAtMost(drain.size.toLong()))
 
                     deviceInfo = DeviceInfo(
                         vendorId         = 0x0BDA,
