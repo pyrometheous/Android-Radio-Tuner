@@ -7,27 +7,32 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.drivewave.sdr.ui.theme.AmberDim
-import com.drivewave.sdr.ui.theme.AmberPrimary
+import com.drivewave.sdr.ui.theme.radio
 import kotlinx.coroutines.launch
 
 /**
  * Animated horizontal audio waveform visualizer.
  * Shows bars that animate with audio amplitude data.
  * Battery-friendly: 20 fps limit via discrete animation.
+ *
+ * Defaults to the current theme accent color when [activeColor]/[inactiveColor] are
+ * [Color.Unspecified].
  */
 @Composable
 fun AudioWaveform(
     amplitudes: FloatArray,
     modifier: Modifier = Modifier,
-    activeColor: Color = AmberPrimary,
-    inactiveColor: Color = AmberDim,
+    activeColor: Color = Color.Unspecified,
+    inactiveColor: Color = Color.Unspecified,
     barWidthFraction: Float = 0.6f,
 ) {
+    val resolvedActive   = if (activeColor   == Color.Unspecified) MaterialTheme.radio.accent    else activeColor
+    val resolvedInactive = if (inactiveColor == Color.Unspecified) MaterialTheme.radio.accentDim else inactiveColor
     val animated = remember(amplitudes.size) {
         Array(amplitudes.size) { Animatable(0f) }
     }
@@ -62,7 +67,7 @@ fun AudioWaveform(
         currentValues.forEachIndexed { index, amplitude ->
             val x = index * barSpacing + barSpacing / 2f
             val barHeight = (amplitude * maxBarHeight).coerceAtLeast(3f)
-            val color = if (amplitude > 0.05f) activeColor else inactiveColor
+            val color = if (amplitude > 0.05f) resolvedActive else resolvedInactive
             drawLine(
                 color = color,
                 start = Offset(x, centerY - barHeight / 2f),

@@ -178,6 +178,13 @@ private class ActiveRecording(
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
         val minBuffer = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
+        if (minBuffer <= 0) {
+            throw SecurityException(
+                "AudioRecord init failed (code $minBuffer) — is RECORD_AUDIO permission granted? " +
+                "Grant the permission in Settings › Apps › DriveWave › Permissions."
+            )
+        }
+
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             sampleRate,
@@ -185,6 +192,14 @@ private class ActiveRecording(
             audioFormat,
             minBuffer * 4,
         )
+
+        if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+            audioRecord?.release()
+            audioRecord = null
+            throw SecurityException(
+                "AudioRecord state is not INITIALIZED — RECORD_AUDIO permission is likely denied."
+            )
+        }
 
         isActive = true
         audioRecord?.startRecording()

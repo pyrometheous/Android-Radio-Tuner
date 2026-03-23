@@ -76,9 +76,12 @@ fun TunerScreen(
 
         Spacer(Modifier.weight(0.5f))
 
+        // True when no hardware is connected — greys out controls and shows placeholder text
+        val noHardware = state.connectionState == SdrConnectionState.NO_DONGLE
+
         // ── Frequency hero ────────────────────────────────────────────────────
         FrequencyDisplay(
-            frequencyText = "%.1f".format(state.currentFrequencyMhz),
+            frequencyText = if (noHardware) "Error" else "%.1f".format(state.currentFrequencyMhz),
             bandLabel = state.currentBand.name,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -116,14 +119,13 @@ fun TunerScreen(
 
         // ── Metadata ──────────────────────────────────────────────────────────
         StationMetadataPanel(
-            stationName = state.currentStation?.effectiveName() ?: run {
-                if (state.connectionState == SdrConnectionState.SCANNING)
-                    "Scanning…"
-                else
-                    "Unnamed Station"
+            stationName = when {
+                noHardware -> "No tuner detected"
+                state.connectionState == SdrConnectionState.SCANNING -> "Scanning…"
+                else -> state.currentStation?.effectiveName() ?: "Unnamed Station"
             },
-            radioText = state.currentRdsMetadata.radioText,
-            programType = state.currentRdsMetadata.programTypeLabel,
+            radioText = if (noHardware) null else state.currentRdsMetadata.radioText,
+            programType = if (noHardware) null else state.currentRdsMetadata.programTypeLabel,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -144,6 +146,7 @@ fun TunerScreen(
 
         // ── Secondary action row ──────────────────────────────────────────────
         SecondaryActionRow(
+            enabled = !noHardware,
             isScanning = state.connectionState == SdrConnectionState.SCANNING,
             isRecording = state.isRecording,
             onScan = {
@@ -275,6 +278,7 @@ private fun FavoriteButton(
 
 @Composable
 private fun SecondaryActionRow(
+    enabled: Boolean,
     isScanning: Boolean,
     isRecording: Boolean,
     onScan: () -> Unit,
@@ -293,28 +297,33 @@ private fun SecondaryActionRow(
             label = if (isScanning) "Stop" else "Scan",
             icon = if (isScanning) Icons.Filled.Stop else Icons.Filled.Search,
             onClick = onScan,
+            enabled = enabled,
             isActive = isScanning,
         )
         SecondaryActionButton(
             label = "Tune",
             icon = Icons.Filled.Dialpad,
             onClick = onDirectTune,
+            enabled = enabled,
         )
         SecondaryActionButton(
             label = if (isRecording) "Stop Rec" else "Record",
             icon = if (isRecording) Icons.Filled.Stop else Icons.Filled.FiberManualRecord,
             onClick = onRecordToggle,
+            enabled = enabled,
             isActive = isRecording,
         )
         SecondaryActionButton(
             label = "Stations",
             icon = Icons.Filled.List,
             onClick = onStations,
+            enabled = enabled,
         )
         SecondaryActionButton(
             label = "Presets",
             icon = Icons.Filled.Star,
             onClick = onFavorites,
+            enabled = enabled,
         )
     }
 }

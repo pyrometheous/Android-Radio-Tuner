@@ -7,12 +7,12 @@ import com.drivewave.sdr.domain.model.SignalQuality
 import com.drivewave.sdr.domain.model.Station
 import com.drivewave.sdr.domain.model.stationIdFrom
 import com.drivewave.sdr.driver.SdrBackend
-import com.drivewave.sdr.metadata.FakeRdsProvider
 import com.drivewave.sdr.metadata.RdsParser
 import com.drivewave.sdr.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +46,6 @@ sealed class ScanEvent {
 @Singleton
 class ScanEngine @Inject constructor(
     private val rdsParser: RdsParser,
-    private val fakeRdsProvider: FakeRdsProvider,
     private val logger: AppLogger,
 ) {
     private val _scanEvents = MutableStateFlow<ScanEvent?>(null)
@@ -106,7 +105,7 @@ class ScanEngine @Inject constructor(
 
         // Stage 1 + 2 + 3: sweep with dwell scoring
         frequencies.forEachIndexed { index, freq ->
-            if (!scanJob!!.isActive) return
+            if (!currentCoroutineContext().isActive) return
 
             _scanEvents.value = ScanEvent.Progress(
                 currentFrequencyMhz = freq,
@@ -175,23 +174,13 @@ class ScanEngine @Inject constructor(
 
     /**
      * Dwells on a frequency for [RDS_COLLECT_MS] and collects RDS metadata.
-     * Falls back to fake RDS in preview mode.
-     *
-     * TODO(rds-parser): Wire backend IQ stream to RdsParser.parseRawGroup()
      */
     private suspend fun collectRdsTimed(backend: SdrBackend, freq: Float, ppmOffset: Int): RdsMetadata {
         rdsParser.reset()
         backend.tune(freq, ppmOffset)
         delay(RDS_COLLECT_MS)
-
-        // If backend is fake, use pre-baked metadata
-        if (backend.name.contains("Preview")) {
-            return fakeRdsProvider.getMetadata(freq)
-        }
-
         // TODO(rds-parser): Collect IQ samples from backend, demodulate FM+RDS,
         // call rdsParser.parseRawGroup() for each decoded group.
-        // For now, return whatever partial data the parser has.
         return rdsParser.buildMetadata()
     }
 

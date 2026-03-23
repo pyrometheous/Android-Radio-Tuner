@@ -9,7 +9,6 @@ import com.drivewave.sdr.domain.model.*
 import com.drivewave.sdr.domain.repository.SettingsRepository
 import com.drivewave.sdr.domain.repository.StationRepository
 import com.drivewave.sdr.driver.*
-import com.drivewave.sdr.metadata.FakeRdsProvider
 import com.drivewave.sdr.recording.RecordingManager
 import com.drivewave.sdr.scan.ScanEngine
 import com.drivewave.sdr.scan.ScanEvent
@@ -36,7 +35,6 @@ class TunerViewModel @Inject constructor(
     private val stationRepository: StationRepository,
     private val settingsRepository: SettingsRepository,
     private val recordingManager: RecordingManager,
-    private val fakeRdsProvider: FakeRdsProvider,
     private val logger: AppLogger,
 ) : ViewModel() {
 
@@ -97,6 +95,12 @@ class TunerViewModel @Inject constructor(
         viewModelScope.launch {
             _radioState.update { it.copy(connectionState = SdrConnectionState.CONNECTING, errorMessage = null) }
             val backend = backendSelector.selectBackend()
+            if (backend == null) {
+                logger.d(TAG, "connectDongle: no hardware backend available")
+                activeBackend = null
+                _radioState.update { it.copy(connectionState = SdrConnectionState.NO_DONGLE, errorMessage = null) }
+                return@launch
+            }
             activeBackend = backend
             logger.d(TAG, "connectDongle: selected backend='${backend.name}' isAvailable=${backend.isAvailable}")
             when (val result = backend.open()) {
@@ -163,7 +167,7 @@ class TunerViewModel @Inject constructor(
         viewModelScope.launch {
             activeBackend?.close()
             activeBackend = null
-            _activeBackendName.value = "UI Preview (No Hardware)"
+            _activeBackendName.value = "None"
             context.startService(
                 Intent(context, RadioService::class.java)
                     .setAction(RadioService.ACTION_STOP_RADIO)
@@ -191,11 +195,7 @@ class TunerViewModel @Inject constructor(
             val matchingStation = allStations.value.firstOrNull {
                 abs(it.frequencyMhz - frequencyMhz) < 0.051f && it.band == _radioState.value.currentBand
             }
-            val rds = if (backend is FakeSdrBackend) {
-                fakeRdsProvider.getMetadata(frequencyMhz)
-            } else {
-                matchingStation?.rdsMetadata ?: RdsMetadata()
-            }
+            val rds = matchingStation?.rdsMetadata ?: RdsMetadata()
             _radioState.update {
                 it.copy(
                     currentFrequencyMhz = frequencyMhz,

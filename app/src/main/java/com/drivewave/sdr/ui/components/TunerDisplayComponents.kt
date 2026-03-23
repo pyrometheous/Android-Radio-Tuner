@@ -10,7 +10,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -34,28 +33,14 @@ fun FrequencyDisplay(
     bandLabel: String,
     modifier: Modifier = Modifier,
 ) {
-    val accent = MaterialTheme.radio.accent
-
     Column(
-        modifier = modifier.semantics { contentDescription = "Current frequency display" },
+        modifier = modifier.semantics { contentDescription = "Current frequency: $frequencyText" },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Frequency number — big LED-style digits
-        Text(
+        // Frequency number — 7-segment LED-style digits
+        SevenSegmentDisplay(
             text = frequencyText,
-            style = TextStyle(
-                fontSize = 80.sp,
-                fontWeight = FontWeight.Light,
-                fontFamily = FontFamily.Monospace, // TODO: swap to custom digital font
-                color = accent,
-                textAlign = TextAlign.Center,
-                shadow = Shadow(
-                    color = accent.copy(alpha = 0.6f),
-                    offset = Offset(0f, 0f),
-                    blurRadius = 24f,
-                ),
-                letterSpacing = 4.sp,
-            ),
+            digitHeight = 80.dp,
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 

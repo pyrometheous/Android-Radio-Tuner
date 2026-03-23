@@ -101,6 +101,10 @@ class RadioService : Service() {
         audioJob?.cancel()
         audioJob = serviceScope.launch {
             val backend = backendSelector.selectBackend()
+            if (backend == null) {
+                logger.d(TAG, "startRadio: no hardware backend available — not starting audio")
+                return@launch
+            }
             activeBackend = backend
             logger.d(TAG, "startRadio: backend=${backend.name}")
             // Backend may still be opening (TunerViewModel.connectDongle runs concurrently).
