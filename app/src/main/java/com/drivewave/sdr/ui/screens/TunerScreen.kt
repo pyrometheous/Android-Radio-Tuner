@@ -14,6 +14,7 @@ import androidx.compose.ui.window.Dialog
 import com.drivewave.sdr.domain.model.*
 import com.drivewave.sdr.ui.components.*
 import com.drivewave.sdr.ui.viewmodel.TunerViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Main tuner screen — single pane for phone layout.
@@ -29,8 +30,23 @@ fun TunerScreen(
 ) {
     val state by viewModel.radioState.collectAsState()
     val amplitudes by viewModel.waveformAmplitudes.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     var showDirectTuneDialog by remember { mutableStateOf(false) }
+
+    // Show a brief pop-up each time the scan engine finds a new station
+    val stationFound by viewModel.stationFoundEvent.collectAsState(initial = null)
+    LaunchedEffect(stationFound) {
+        stationFound?.let { station ->
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "Found: ${station.displayName}  •  ${"%.1f".format(station.frequencyMhz)} MHz",
+                    duration = SnackbarDuration.Short,
+                )
+            }
+        }
+    }
 
     // Connect on first composition if not already connected
     LaunchedEffect(Unit) {
@@ -39,12 +55,17 @@ fun TunerScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(bottom = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier,
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         // ── Top bar ───────────────────────────────────────────────────────────
         TunerTopBar(
             connectionState = state.connectionState,
@@ -111,11 +132,11 @@ fun TunerScreen(
         // ── Main control row ──────────────────────────────────────────────────
         MainControlRow(
             state = state,
-            onPrev = viewModel::seekPrev,
-            onSeekDown = { viewModel.tuneStep(-0.1f) },
+            onPrev = viewModel::seekPrevPreset,      // SkipPrev  = jump to saved preset
+            onSeekDown = { viewModel.seekToSignal(-1) }, // FastRewind = seek until signal found
             onPlayMute = viewModel::togglePlayMute,
-            onSeekUp = { viewModel.tuneStep(+0.1f) },
-            onNext = viewModel::seekNext,
+            onSeekUp = { viewModel.seekToSignal(+1) },   // FastForward = seek until signal found
+            onNext = viewModel::seekNextPreset,      // SkipNext  = jump to saved preset
             onFavorite = viewModel::toggleFavorite,
         )
 
@@ -144,7 +165,8 @@ fun TunerScreen(
         state.errorMessage?.let { error ->
             ErrorBanner(message = error)
         }
-    }
+        }   // end Column
+    }       // end Scaffold
 
     // ── Direct Tune dialog ────────────────────────────────────────────────────
     if (showDirectTuneDialog) {
@@ -188,14 +210,14 @@ private fun MainControlRow(
     ) {
         TunerActionButton(
             icon = Icons.Filled.SkipPrevious,
-            contentDescription = "Previous station",
+            contentDescription = "Previous preset station",
             onClick = onPrev,
             enabled = enabled,
             size = 56.dp,
         )
         TunerActionButton(
             icon = Icons.Filled.FastRewind,
-            contentDescription = "Seek down",
+            contentDescription = "Seek down — scan for next signal",
             onClick = onSeekDown,
             enabled = enabled,
             size = 56.dp,
@@ -208,14 +230,14 @@ private fun MainControlRow(
         )
         TunerActionButton(
             icon = Icons.Filled.FastForward,
-            contentDescription = "Seek up",
+            contentDescription = "Seek up — scan for next signal",
             onClick = onSeekUp,
             enabled = enabled,
             size = 56.dp,
         )
         TunerActionButton(
             icon = Icons.Filled.SkipNext,
-            contentDescription = "Next station",
+            contentDescription = "Next preset station",
             onClick = onNext,
             enabled = enabled,
             size = 56.dp,

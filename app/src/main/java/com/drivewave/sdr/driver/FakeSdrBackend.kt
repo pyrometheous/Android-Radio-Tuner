@@ -2,10 +2,12 @@ package com.drivewave.sdr.driver
 
 import com.drivewave.sdr.domain.model.RadioBand
 import com.drivewave.sdr.domain.model.SignalQuality
+import com.drivewave.sdr.dsp.FmDemodulator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -31,7 +33,8 @@ class FakeSdrBackend @Inject constructor() : SdrBackend {
     private var currentFrequency = 101.1f
     private var ppm = 0
     private var gain: Float? = null
-    private var sampleRate = 2_400_000
+    // Sample rate must match FmDemodulator.INPUT_RATE for the audio pipeline
+    private var sampleRate = FmDemodulator.INPUT_RATE
 
     override val deviceInfo: DeviceInfo? = DeviceInfo(
         vendorId = 0x0000,
@@ -66,21 +69,34 @@ class FakeSdrBackend @Inject constructor() : SdrBackend {
     }
 
     override fun iqSampleStream(): Flow<IqSample> = flow {
-        var t = 0L
+        // Generate FM-modulated 1 kHz test tone so demodulation produces audible output.
+        // IQ bytes are signed (-128..127) matching IqSample.data convention.
+        var carrierPhase = 0.0
+        var audioPhase   = 0.0
+        val audioFreqHz  = 1_000.0   // 1 kHz tone, clearly audible after demod
+        val maxDeviation = 50_000.0  // ±50 kHz FM deviation (inside ±75 kHz standard)
+        val bytesPerBlock = 8_192    // 4096 IQ pairs
+
         while (true) {
-            val blockSize = 16384
-            val data = ByteArray(blockSize) { i ->
-                val phase = (2.0 * Math.PI * 200_000.0 * t / sampleRate).mod(2.0 * Math.PI)
-                val signal = if (i % 2 == 0) {
-                    (sin(phase + (i / 2).toDouble() * 0.001) * 100 + Random.nextDouble(-10.0, 10.0)).toInt().coerceIn(-128, 127).toByte()
-                } else {
-                    (sin(phase + Math.PI / 2 + (i / 2).toDouble() * 0.001) * 100 + Random.nextDouble(-10.0, 10.0)).toInt().coerceIn(-128, 127).toByte()
-                }
-                t++
-                signal
+            val samplePeriod = 1.0 / sampleRate
+            val data = ByteArray(bytesPerBlock)
+            for (n in 0 until bytesPerBlock / 2) {
+                val audio = sin(audioPhase)
+                audioPhase = (audioPhase + 2.0 * Math.PI * audioFreqHz * samplePeriod)
+                    .let { if (it > 2.0 * Math.PI) it - 2.0 * Math.PI else it }
+
+                // FM: frequency deviation proportional to audio amplitude
+                carrierPhase = (carrierPhase +
+                    2.0 * Math.PI * maxDeviation * audio * samplePeriod)
+                    .let { if (it > 2.0 * Math.PI) it - 2.0 * Math.PI else it }
+
+                // IQ in signed byte range (-128..127)
+                data[n * 2]     = (cos(carrierPhase) * 120.0).toInt().coerceIn(-128, 127).toByte()
+                data[n * 2 + 1] = (sin(carrierPhase) * 120.0).toInt().coerceIn(-128, 127).toByte()
             }
             emit(IqSample(data, sampleRate, currentFrequency, System.nanoTime()))
-            delay(33) // ~30 blocks/sec
+            // Pace to ~real-time: bytesPerBlock/2 IQ pairs at sampleRate Hz
+            delay(((bytesPerBlock / 2) * 1000L / sampleRate).coerceAtLeast(1))
         }
     }
 

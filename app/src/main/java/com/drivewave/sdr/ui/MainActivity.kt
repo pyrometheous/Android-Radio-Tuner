@@ -38,6 +38,7 @@ import com.drivewave.sdr.ui.theme.DriveWaveTheme
 import com.drivewave.sdr.ui.viewmodel.RecordingsViewModel
 import com.drivewave.sdr.ui.viewmodel.SettingsViewModel
 import com.drivewave.sdr.ui.viewmodel.TunerViewModel
+import com.drivewave.sdr.ui.viewmodel.TunerViewModel.Companion.USB_PERMISSION_ACTION
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -56,6 +57,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Receives USB_PERMISSION_ACTION after the user responds to the system permission dialog.
+    // NOT_EXPORTED — this intent is only sent by us via PendingIntent.
+    private val usbPermissionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == USB_PERMISSION_ACTION) {
+                val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+                if (granted) {
+                    tunerViewModel.onUsbDeviceAttached()
+                }
+            }
+        }
+    }
+
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +80,13 @@ class MainActivity : ComponentActivity() {
             usbDetachReceiver,
             IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED),
             RECEIVER_EXPORTED,
+        )
+
+        // Register USB permission receiver. NOT_EXPORTED — PendingIntent is app-internal only.
+        registerReceiver(
+            usbPermissionReceiver,
+            IntentFilter(USB_PERMISSION_ACTION),
+            RECEIVER_NOT_EXPORTED,
         )
 
         // Handle USB ATTACHED intent from manifest filter (cold start or permission just granted).
@@ -92,6 +113,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(usbDetachReceiver)
+        unregisterReceiver(usbPermissionReceiver)
     }
 
     // Called when singleTask activity is re-used (e.g. USB attach while already running).

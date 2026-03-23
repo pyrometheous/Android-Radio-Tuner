@@ -1,6 +1,8 @@
 package com.drivewave.sdr.ui.viewmodel
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import com.drivewave.sdr.domain.model.*
@@ -11,6 +13,7 @@ import com.drivewave.sdr.metadata.FakeRdsProvider
 import com.drivewave.sdr.recording.RecordingManager
 import com.drivewave.sdr.scan.ScanEngine
 import com.drivewave.sdr.scan.ScanEvent
+import com.drivewave.sdr.service.RadioService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -46,6 +49,10 @@ class TunerViewModel @Inject constructor(
 
     private val _activeBackendName = MutableStateFlow("UI Preview (No Hardware)")
     val activeBackendName: StateFlow<String> = _activeBackendName.asStateFlow()
+
+    /** Emits a station each time the scan engine confirms a new find — drives pop-up toasts. */
+    private val _stationFoundEvent = MutableSharedFlow<Station>(extraBufferCapacity = 8)
+    val stationFoundEvent: SharedFlow<Station> = _stationFoundEvent.asSharedFlow()
 
     private var activeBackend: SdrBackend? = null
     private var waveformJob: Job? = null
@@ -92,6 +99,11 @@ class TunerViewModel @Inject constructor(
             when (val result = backend.open()) {
                 is OpenResult.Success -> {
                     _activeBackendName.value = backend.name
+                    // Launch foreground service for background audio output
+                    context.startService(
+                        Intent(context, RadioService::class.java)
+                            .setAction(RadioService.ACTION_START_RADIO)
+                    )
                     _radioState.update {
                         it.copy(connectionState = SdrConnectionState.READY)
                     }
@@ -100,10 +112,14 @@ class TunerViewModel @Inject constructor(
                     startWaveformSimulation()
                 }
                 is OpenResult.PermissionDenied -> {
+                    // Request USB permission; the system dialog will trigger
+                    // ACTION_USB_DEVICE_ATTACHED in MainActivity which calls onUsbDeviceAttached()
+                    // again when the user grants access.
+                    requestUsbPermission()
                     _radioState.update {
                         it.copy(
                             connectionState = SdrConnectionState.PERMISSION_NEEDED,
-                            errorMessage = "USB permission denied. Please grant access."
+                            errorMessage = "USB permission needed — tap Allow in the system dialog."
                         )
                     }
                 }
@@ -140,6 +156,10 @@ class TunerViewModel @Inject constructor(
             activeBackend?.close()
             activeBackend = null
             _activeBackendName.value = "UI Preview (No Hardware)"
+            context.startService(
+                Intent(context, RadioService::class.java)
+                    .setAction(RadioService.ACTION_STOP_RADIO)
+            )
             stopWaveform()
             _radioState.update {
                 it.copy(
@@ -180,24 +200,81 @@ class TunerViewModel @Inject constructor(
         }
     }
 
-    fun seekNext() {
+    // ── Station navigation ────────────────────────────────────
+
+    /**
+     * Auto-seek: step the tuner in [direction] (+1 = up, -1 = down) by [bandConfig.stepMhz]
+     * until a signal above [SEEK_THRESHOLD] is found or the full band is swept.
+     * Wraps around at band edges.
+     */
+    fun seekToSignal(direction: Int) {
+        val backend = activeBackend ?: return
+        viewModelScope.launch {
+            val config = bandConfig.value
+            val step = config.stepMhz * direction
+            var freq = _radioState.value.currentFrequencyMhz
+            val maxSteps = ((config.endMhz - config.startMhz) / config.stepMhz).toInt() + 2
+            repeat(maxSteps) {
+                freq += step
+                // Wrap at band edges
+                if (freq > config.endMhz)   freq = config.startMhz
+                if (freq < config.startMhz) freq = config.endMhz
+                backend.tune(freq, ppmOffset.value)
+                delay(SEEK_SETTLE_MS)
+                val quality = backend.measureSignalQuality()
+                if (quality.confidence >= SEEK_THRESHOLD) {
+                    tune(freq)
+                    return@launch
+                }
+            }
+            // No signal found — stay at last position
+            tune(freq)
+        }
+    }
+
+    /** Jump to the next scanned/saved station above current frequency (wraps). */
+    fun seekNextPreset() {
         val current = _radioState.value.currentFrequencyMhz
-        val band = _radioState.value.currentBand
-        val next = allStations.value
-            .filter { it.band == band && it.frequencyMhz > current + 0.05f }
+        val band    = _radioState.value.currentBand
+        val stations = allStations.value.filter { it.band == band }
+        val next = stations
+            .filter { it.frequencyMhz > current + 0.05f }
             .minByOrNull { it.frequencyMhz }
+            ?: stations.minByOrNull { it.frequencyMhz }  // wrap around
         if (next != null) tune(next.frequencyMhz)
         else tuneStep(+bandConfig.value.stepMhz)
     }
 
-    fun seekPrev() {
-        val current = _radioState.value.currentFrequencyMhz
-        val band = _radioState.value.currentBand
-        val prev = allStations.value
-            .filter { it.band == band && it.frequencyMhz < current - 0.05f }
+    /** Jump to the previous scanned/saved station below current frequency (wraps). */
+    fun seekPrevPreset() {
+        val current  = _radioState.value.currentFrequencyMhz
+        val band     = _radioState.value.currentBand
+        val stations = allStations.value.filter { it.band == band }
+        val prev = stations
+            .filter { it.frequencyMhz < current - 0.05f }
             .maxByOrNull { it.frequencyMhz }
+            ?: stations.maxByOrNull { it.frequencyMhz }  // wrap around
         if (prev != null) tune(prev.frequencyMhz)
         else tuneStep(-bandConfig.value.stepMhz)
+    }
+
+    /** @deprecated Use seekNextPreset / seekPrevPreset for preset navigation. */
+    fun seekNext() = seekNextPreset()
+    fun seekPrev() = seekPrevPreset()
+
+    // ── USB permission ────────────────────────────────────────────────────────
+
+    private fun requestUsbPermission() {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+        val device = usbManager.deviceList.values.firstOrNull { d ->
+            RTL_SDR_IDS.any { (v, p) -> d.vendorId == v && d.productId == p }
+        } ?: return
+        val pi = PendingIntent.getBroadcast(
+            context, 0,
+            Intent(USB_PERMISSION_ACTION),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        usbManager.requestPermission(device, pi)
     }
 
     fun tuneStep(stepMhz: Float) {
@@ -268,7 +345,12 @@ class TunerViewModel @Inject constructor(
                     it.copy(connectionState = SdrConnectionState.ERROR, errorMessage = event.message)
                 }
             }
-            is ScanEvent.StationFound -> { /* individual station rows update live via DB flow */ }
+            is ScanEvent.StationFound -> {
+                // Save immediately so the Stations list updates in real-time
+                stationRepository.upsertStation(event.station)
+                // Emit event so TunerScreen can show a brief pop-up
+                _stationFoundEvent.tryEmit(event.station)
+            }
             is ScanEvent.Progress -> {
                 _radioState.update { it.copy(currentFrequencyMhz = event.currentFrequencyMhz) }
             }
@@ -354,6 +436,16 @@ class TunerViewModel @Inject constructor(
         viewModelScope.launch {
             activeBackend?.close()
         }
+    }
+
+    companion object {
+        private const val SEEK_THRESHOLD = 0.35f   // matches ScanEngine.CONFIDENCE_THRESHOLD
+        private const val SEEK_SETTLE_MS = 80L     // ms to wait after tune before quality check
+        const val USB_PERMISSION_ACTION = "com.drivewave.sdr.USB_PERMISSION"
+        private val RTL_SDR_IDS = listOf(
+            0x0BDA to 0x2832, 0x0BDA to 0x2838, 0x0BDA to 0x2831,
+            0x0BDA to 0x2840, 0x0BDA to 0x2836
+        )
     }
 }
 

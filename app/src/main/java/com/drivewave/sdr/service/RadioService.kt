@@ -6,18 +6,24 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.drivewave.sdr.R
 import com.drivewave.sdr.domain.model.SdrConnectionState
 import com.drivewave.sdr.driver.SdrBackend
 import com.drivewave.sdr.driver.SdrBackendSelector
+import com.drivewave.sdr.dsp.FmDemodulator
 import com.drivewave.sdr.scan.ScanEngine
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -40,6 +46,7 @@ class RadioService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var activeBackend: SdrBackend? = null
+    private var audioJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -66,15 +73,65 @@ class RadioService : Service() {
     }
 
     private fun startRadio() {
-        serviceScope.launch {
+        audioJob?.cancel()
+        audioJob = serviceScope.launch {
             val backend = backendSelector.selectBackend()
             activeBackend = backend
-            // TODO(native-backend): open backend, start FM demodulation loop
-            // Emit updated state through RadioStateRepository / shared StateFlow
+            // Backend may still be opening (TunerViewModel.connectDongle runs concurrently).
+            // Wait up to 4 seconds for it to become ready.
+            var waited = 0
+            while (!backend.isOpen && waited < 4_000) {
+                delay(100)
+                waited += 100
+            }
+            if (!backend.isOpen) return@launch
+            startAudioOutput(backend)
+        }
+    }
+
+    private suspend fun startAudioOutput(backend: SdrBackend) {
+        val minBuf = AudioTrack.getMinBufferSize(
+            FmDemodulator.OUTPUT_RATE,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+        )
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(FmDemodulator.OUTPUT_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .setBufferSizeInBytes(minBuf * 4)
+            .build()
+
+        track.play()
+        val demodulator = FmDemodulator()
+
+        try {
+            backend.iqSampleStream().collect { sample ->
+                val pcm = demodulator.process(sample.data)
+                if (pcm.isNotEmpty()) {
+                    track.write(pcm, 0, pcm.size)
+                }
+            }
+        } finally {
+            track.stop()
+            track.release()
         }
     }
 
     private fun stopRadio() {
+        audioJob?.cancel()
+        audioJob = null
         serviceScope.launch {
             activeBackend?.close()
             activeBackend = null
