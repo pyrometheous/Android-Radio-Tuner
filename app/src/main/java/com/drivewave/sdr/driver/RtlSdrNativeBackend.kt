@@ -35,8 +35,12 @@ class RtlSdrNativeBackend @Inject constructor(
 
     override val name: String = "RTL-SDR Native (RTL2832U / R820T2)"
     override val supportedBands: List<RadioBand> = listOf(RadioBand.FM)
-    // Available when a matching USB device is physically present — permission is handled in open().
-    override val isAvailable: Boolean get() = findRtlSdrDevice() != null
+    // Reported as unavailable until chip initialisation (RTL2832U baseband + R820T2 tuner
+    // register sequence) is implemented. Without init the bulk endpoint returns no useful
+    // data, so selecting this backend would result in silence. Use ExternalDriverBackend
+    // (rtl_tcp) for real-hardware reception today.
+    // TODO(native-backend): set to `findRtlSdrDevice() != null` once initBaseband() is ready.
+    override val isAvailable: Boolean get() = false
 
     private var _isOpen = false
     override val isOpen: Boolean get() = _isOpen

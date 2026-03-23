@@ -74,7 +74,7 @@ class FakeSdrBackend @Inject constructor() : SdrBackend {
         var carrierPhase = 0.0
         var audioPhase   = 0.0
         val audioFreqHz  = 1_000.0   // 1 kHz tone, clearly audible after demod
-        val maxDeviation = 50_000.0  // ±50 kHz FM deviation (inside ±75 kHz standard)
+        val maxDeviation = 10_000.0  // ±10 kHz FM deviation — β=10, easily demodulable
         val bytesPerBlock = 8_192    // 4096 IQ pairs
 
         while (true) {
@@ -83,9 +83,13 @@ class FakeSdrBackend @Inject constructor() : SdrBackend {
             for (n in 0 until bytesPerBlock / 2) {
                 val audio = sin(audioPhase)
                 audioPhase += 2.0 * Math.PI * audioFreqHz * samplePeriod
+                if (audioPhase > 2.0 * Math.PI) audioPhase -= 2.0 * Math.PI
 
-                // FM: integrate audio to get phase deviation
+                // FM: integrate audio to get instantaneous phase deviation.
+                // Wrap carrier phase to prevent loss of floating-point precision over time.
                 carrierPhase += 2.0 * Math.PI * maxDeviation * audio * samplePeriod
+                if (carrierPhase > Math.PI) carrierPhase -= 2.0 * Math.PI
+                else if (carrierPhase < -Math.PI) carrierPhase += 2.0 * Math.PI
 
                 // RTL-SDR unsigned format: 0-255, centre at 127.
                 // Stored as signed Java bytes (128 → -128, 255 → -1, etc.).

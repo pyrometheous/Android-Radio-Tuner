@@ -128,7 +128,11 @@ class RadioService : Service() {
             backend.iqSampleStream().collect { sample ->
                 val pcm = demodulator.process(sample.data)
                 if (pcm.isNotEmpty()) {
-                    track.write(pcm, 0, pcm.size)
+                    // AudioTrack.write() in MODE_STREAM is a blocking call — dispatch to IO
+                    // so we don't starve the Default thread pool.
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        track.write(pcm, 0, pcm.size)
+                    }
                 }
             }
         } finally {
